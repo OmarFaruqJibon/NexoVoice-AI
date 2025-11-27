@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Mic, Square, Play, Bot, Volume2, Sparkles } from "lucide-react";
+import { Mic, Square, Play, Bot, Volume2, Sparkles, Pause } from "lucide-react";
 
 export default function VoiceChatbot() {
   const [recording, setRecording] = useState(false);
@@ -7,15 +7,19 @@ export default function VoiceChatbot() {
   const [error, setError] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const audioRef = useRef(null);
   const streamRef = useRef(null);
   const visualizationRef = useRef(null);
+  const waveVisualizationRef = useRef(null);
   const animationRef = useRef(null);
+  const waveAnimationRef = useRef(null);
 
-  // Audio visualization effect
+  // Robot visualization effect
   useEffect(() => {
     const canvas = visualizationRef.current;
     if (!canvas) return;
@@ -36,11 +40,9 @@ export default function VoiceChatbot() {
       const centerY = canvas.height / 2;
       const maxRadius = Math.min(centerX, centerY) - 10;
       
-      // Create pulsing effect
       const time = Date.now() * 0.005;
       const pulse = (Math.sin(time) + 1) * 0.5;
       
-      // Outer glow
       const gradient = ctx.createRadialGradient(
         centerX, centerY, maxRadius * 0.3,
         centerX, centerY, maxRadius
@@ -53,7 +55,6 @@ export default function VoiceChatbot() {
       ctx.fillStyle = gradient;
       ctx.fill();
       
-      // Inner circle
       ctx.beginPath();
       ctx.arc(centerX, centerY, maxRadius * 0.3, 0, 2 * Math.PI);
       ctx.fillStyle = status === "recording" ? '#ef4444' : '#3b82f6';
@@ -69,7 +70,7 @@ export default function VoiceChatbot() {
     };
   }, [status, isPlaying]);
 
-  useEffect(() => {
+    useEffect(() => {
   if (status === "ready" && audioUrl && audioRef.current) {
     setIsPlaying(true);
     audioRef.current.play().catch(err => {
@@ -77,6 +78,56 @@ export default function VoiceChatbot() {
     });
   }
 }, [status, audioUrl]);
+
+  // Wave visualization effect for audio playback
+  useEffect(() => {
+    const canvas = waveVisualizationRef.current;
+    if (!canvas || !isPlaying) return;
+
+    const ctx = canvas.getContext('2d');
+    const bars = 50;
+    const barWidth = canvas.width / bars;
+    let animationId;
+
+    const drawWave = () => {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < bars; i++) {
+        // Create dynamic bar heights based on audio playing
+        const baseHeight = Math.random() * 0.7 + 0.3;
+        const time = Date.now() * 0.005 + i * 0.2;
+        const wave = Math.sin(time) * 0.3 + 0.7;
+        const progress = currentTime / duration || 0;
+        const progressEffect = 1 - Math.abs((i / bars) - progress) * 2;
+        
+        const barHeight = (baseHeight * wave * Math.max(0.1, progressEffect)) * canvas.height;
+        
+        // Gradient based on position and progress
+        const gradient = ctx.createLinearGradient(0, canvas.height - barHeight, 0, canvas.height);
+        if (i / bars < progress) {
+          gradient.addColorStop(0, '#3b82f6');
+          gradient.addColorStop(1, '#60a5fa');
+        } else {
+          gradient.addColorStop(0, '#4b5563');
+          gradient.addColorStop(1, '#6b7280');
+        }
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(i * barWidth + 2, canvas.height - barHeight, barWidth - 4, barHeight);
+      }
+
+      animationId = requestAnimationFrame(drawWave);
+    };
+
+    drawWave();
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [isPlaying, currentTime, duration]);
 
   const startRecording = async () => {
     try {
@@ -165,8 +216,36 @@ export default function VoiceChatbot() {
     }
   };
 
+  const pauseAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
   const handleAudioEnd = () => {
     setIsPlaying(false);
+    setCurrentTime(0);
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+      setDuration(audioRef.current.duration || 0);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration || 0);
+    }
+  };
+
+  const formatTime = (time) => {
+    if (!time || isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const getStatusMessage = () => {
@@ -282,14 +361,14 @@ export default function VoiceChatbot() {
                 </button>
 
                 <button
-                  onClick={playAudio}
-                  disabled={!audioUrl || isPlaying}
+                  onClick={isPlaying ? pauseAudio : playAudio}
+                  disabled={!audioUrl}
                   className={`p-4 rounded-2xl transition-all duration-300 transform hover:scale-105 ${
                     audioUrl ? 'bg-blue-500/20 hover:bg-blue-500/30' : 'bg-gray-500/20 cursor-not-allowed'
                   } border border-blue-500/30 disabled:opacity-50`}
                 >
                   {isPlaying ? (
-                    <Volume2 className="w-8 h-8 text-blue-400 animate-pulse" />
+                    <Pause className="w-8 h-8 text-blue-400" />
                   ) : (
                     <Play className="w-8 h-8 text-blue-400" />
                   )}
@@ -307,20 +386,55 @@ export default function VoiceChatbot() {
             </div>
           </div>
 
-          {/* Audio Player */}
+          {/* Custom Audio Player with Wave Visualization */}
           {audioUrl && (
             <div className="bg-gray-700/50 rounded-2xl p-6 border border-gray-600/50">
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3 mb-4">
                 <Volume2 className="w-5 h-5 text-cyan-400" />
                 <span className="text-white font-semibold">AI Response</span>
               </div>
+              
+              {/* Wave Visualization */}
+              <div className="mb-4 rounded-xl overflow-hidden bg-gray-800/50 p-4">
+                <canvas
+                  ref={waveVisualizationRef}
+                  width={600}
+                  height={120}
+                  className="w-full h-20 rounded-lg"
+                />
+              </div>
+
+              {/* Custom Controls */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm text-gray-400 min-w-[40px]">
+                  {formatTime(currentTime)}
+                </div>
+                
+                <div className="flex-1 relative">
+                  <div className="w-full bg-gray-600 rounded-full h-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-100"
+                      style={{
+                        width: duration ? `${(currentTime / duration) * 100}%` : '0%'
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                <div className="text-sm text-gray-400 min-w-[40px] text-right">
+                  {formatTime(duration)}
+                </div>
+              </div>
+
+              {/* Hidden audio element for actual playback */}
               <audio
                 ref={audioRef}
-                controls
                 onEnded={handleAudioEnd}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
-                className="w-full h-12 rounded-lg"
+                className="hidden"
               >
                 <source src={audioUrl} type="audio/webm" />
                 Your browser does not support the audio element.
@@ -333,11 +447,8 @@ export default function VoiceChatbot() {
             <div className="text-gray-400 text-sm bg-gray-900/50 rounded-xl p-4 border border-gray-700/30">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span>Powered by Whisper + Piper + Ollama</span>
+                <span>Powered by Nexovision AI</span>
               </div>
-              <code className="text-cyan-400 bg-gray-800 px-2 py-1 rounded">
-                Backend: http://localhost:8000
-              </code>
             </div>
           </div>
         </div>

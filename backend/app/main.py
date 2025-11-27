@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+import re
 
 from .utils import save_upload_file_tmp, convert_to_wav, cleanup_files, make_tmp_filename
 from .stt import transcribe
@@ -24,6 +25,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def clean_text_for_tts(text: str) -> str:
+    """
+    Remove Markdown or special symbols so TTS reads text properly.
+    """
+    # Remove markdown symbols: * _ ~ `
+    text = re.sub(r"[*_`~]", "", text)
+
+    # Remove markdown headers: #, ##, etc.
+    text = re.sub(r"^#+\s*", "", text)
+
+    # Optional: remove extra spaces
+    return text.strip()
 
 
 @app.post("/voice-chat")
@@ -55,11 +70,14 @@ async def voice_chat(audio: UploadFile = File(...)):
         prompt = f"User said: {text}\nAssistant:"
         reply = ask_ollama(prompt)
         print(f">>> [LLM] Ollama reply: {reply}")
+        
+        # Clean the reply for TTS
+        cleaned_reply = clean_text_for_tts(reply)
 
         # TTS
         print(">>> [TTS] Generating voice using Piper...")
         out_wav = make_tmp_filename('.wav')
-        tts_path = tts_piper(reply, output_path=out_wav)
+        tts_path = tts_piper(cleaned_reply, output_path=out_wav)
         print(f">>> [TTS] Piper output saved at: {tts_path}")
 
         print(">>> [VOICE-CHAT] Completed. Sending audio response.")
@@ -71,3 +89,6 @@ async def voice_chat(audio: UploadFile = File(...)):
             cleanup_files(src_path)
         if wav_path:
             cleanup_files(wav_path)
+
+
+
