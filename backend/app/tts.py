@@ -3,16 +3,14 @@ import subprocess
 import os
 from .config import PIPER_CMD, PIPER_MODEL, TMP_DIR
 
+from colorama import init as colorama_init, Fore, Style
+colorama_init(autoreset=True)
+
 def tts_piper(text: str, output_path: str = None) -> str:
-    print(">>> [TTS] Starting Piper TTS...")
-    print(f">>> [TTS] Text: {text}")
-    print(f">>> [TTS] Piper CMD: {PIPER_CMD}")
-    print(f">>> [TTS] Piper MODEL: {PIPER_MODEL}")
+    print(f"{Fore.MAGENTA}[TTS] Text: {Style.RESET_ALL} {text}")
 
     if output_path is None:
         output_path = os.path.join(TMP_DIR, "reply.wav")
-
-    print(f">>> [TTS] Output file: {output_path}")
 
     cmd = [
         PIPER_CMD,
@@ -21,8 +19,6 @@ def tts_piper(text: str, output_path: str = None) -> str:
         "--output_file", output_path,
     ]
 
-    print(f">>> [TTS] Running command: {' '.join(cmd)}")
-
     try:
         subprocess.run(
             cmd,
@@ -30,8 +26,6 @@ def tts_piper(text: str, output_path: str = None) -> str:
             check=True
         )
     except Exception as e:
-        print(">>> [TTS] ERROR: Piper failed!")
+        print(Fore.RED + "[TTS] ERROR: Piper failed!" + Style.RESET_ALL)
         raise RuntimeError(f"Piper TTS failed: {e}")
-
-    print(">>> [TTS] Piper completed successfully")
     return output_path

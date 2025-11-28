@@ -35,26 +35,26 @@ export default function VoiceChatbot() {
     const drawVisualization = () => {
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
+
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
       const maxRadius = Math.min(centerX, centerY) - 10;
-      
+
       const time = Date.now() * 0.005;
       const pulse = (Math.sin(time) + 1) * 0.5;
-      
+
       const gradient = ctx.createRadialGradient(
         centerX, centerY, maxRadius * 0.3,
         centerX, centerY, maxRadius
       );
       gradient.addColorStop(0, status === "recording" ? '#ef4444' : '#3b82f6');
       gradient.addColorStop(1, 'transparent');
-      
+
       ctx.beginPath();
       ctx.arc(centerX, centerY, maxRadius * (0.7 + pulse * 0.3), 0, 2 * Math.PI);
       ctx.fillStyle = gradient;
       ctx.fill();
-      
+
       ctx.beginPath();
       ctx.arc(centerX, centerY, maxRadius * 0.3, 0, 2 * Math.PI);
       ctx.fillStyle = status === "recording" ? '#ef4444' : '#3b82f6';
@@ -62,7 +62,7 @@ export default function VoiceChatbot() {
     };
 
     animate();
-    
+
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
@@ -70,14 +70,15 @@ export default function VoiceChatbot() {
     };
   }, [status, isPlaying]);
 
-    useEffect(() => {
-  if (status === "ready" && audioUrl && audioRef.current) {
-    setIsPlaying(true);
-    audioRef.current.play().catch(err => {
-      console.warn("Autoplay blocked:", err);
-    });
-  }
-}, [status, audioUrl]);
+  // AUTO play generated voice
+  useEffect(() => {
+    if (status === "ready" && audioUrl && audioRef.current) {
+      setIsPlaying(true);
+      audioRef.current.play().catch(err => {
+        console.warn("Autoplay blocked:", err);
+      });
+    }
+  }, [status, audioUrl]);
 
   // Wave visualization effect for audio playback
   useEffect(() => {
@@ -94,16 +95,14 @@ export default function VoiceChatbot() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       for (let i = 0; i < bars; i++) {
-        // Create dynamic bar heights based on audio playing
         const baseHeight = Math.random() * 0.7 + 0.3;
         const time = Date.now() * 0.005 + i * 0.2;
         const wave = Math.sin(time) * 0.3 + 0.7;
         const progress = currentTime / duration || 0;
         const progressEffect = 1 - Math.abs((i / bars) - progress) * 2;
-        
+
         const barHeight = (baseHeight * wave * Math.max(0.1, progressEffect)) * canvas.height;
-        
-        // Gradient based on position and progress
+
         const gradient = ctx.createLinearGradient(0, canvas.height - barHeight, 0, canvas.height);
         if (i / bars < progress) {
           gradient.addColorStop(0, '#3b82f6');
@@ -140,8 +139,8 @@ export default function VoiceChatbot() {
 
       const mimeType =
         MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" :
-        MediaRecorder.isTypeSupported("audio/ogg") ? "audio/ogg" :
-        "audio/webm";
+          MediaRecorder.isTypeSupported("audio/ogg") ? "audio/ogg" :
+            "audio/webm";
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
@@ -307,9 +306,9 @@ export default function VoiceChatbot() {
                   <div className="text-center">
                     <Bot className="w-16 h-16 text-white mx-auto mb-2" />
                     <span className="text-white font-semibold text-lg">
-                      {status === "recording" ? "Listening..." : 
-                       status === "processing" ? "Thinking..." : 
-                       ""}
+                      {status === "recording" ? "Listening..." :
+                        status === "processing" ? "Thinking..." :
+                          ""}
                     </span>
                   </div>
                 </div>
@@ -324,17 +323,16 @@ export default function VoiceChatbot() {
                   {getStatusMessage()}
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      status === "recording" ? "bg-red-500 animate-pulse" :
-                      status === "processing" ? "bg-purple-500" :
-                      status === "ready" ? "bg-green-500" :
-                      "bg-blue-500"
-                    }`}
+                  <div
+                    className={`h-2 rounded-full transition-all duration-300 ${status === "recording" ? "bg-red-500 animate-pulse" :
+                        status === "processing" ? "bg-purple-500" :
+                          status === "ready" ? "bg-green-500" :
+                            "bg-blue-500"
+                      }`}
                     style={{
                       width: status === "recording" ? "100%" :
-                             status === "processing" ? "70%" :
-                             status === "ready" ? "100%" : "0%"
+                        status === "processing" ? "70%" :
+                          status === "ready" ? "100%" : "0%"
                     }}
                   />
                 </div>
@@ -345,9 +343,8 @@ export default function VoiceChatbot() {
                 <button
                   onClick={startRecording}
                   disabled={recording || status === "processing"}
-                  className={`p-4 rounded-2xl transition-all duration-300 transform hover:scale-105 ${
-                    recording ? 'bg-red-500/20 cursor-not-allowed' : 'bg-green-500/20 hover:bg-green-500/30'
-                  } border border-green-500/30 disabled:opacity-50`}
+                  className={`p-4 rounded-2xl transition-all duration-300 transform hover:scale-105 ${recording ? 'bg-red-500/20 cursor-not-allowed' : 'bg-green-500/20 hover:bg-green-500/30'
+                    } border border-green-500/30 disabled:opacity-50`}
                 >
                   <Mic className="w-8 h-8 text-green-400" />
                 </button>
@@ -363,9 +360,8 @@ export default function VoiceChatbot() {
                 <button
                   onClick={isPlaying ? pauseAudio : playAudio}
                   disabled={!audioUrl}
-                  className={`p-4 rounded-2xl transition-all duration-300 transform hover:scale-105 ${
-                    audioUrl ? 'bg-blue-500/20 hover:bg-blue-500/30' : 'bg-gray-500/20 cursor-not-allowed'
-                  } border border-blue-500/30 disabled:opacity-50`}
+                  className={`p-4 rounded-2xl transition-all duration-300 transform hover:scale-105 ${audioUrl ? 'bg-blue-500/20 hover:bg-blue-500/30' : 'bg-gray-500/20 cursor-not-allowed'
+                    } border border-blue-500/30 disabled:opacity-50`}
                 >
                   {isPlaying ? (
                     <Pause className="w-8 h-8 text-blue-400" />
@@ -393,7 +389,7 @@ export default function VoiceChatbot() {
                 <Volume2 className="w-5 h-5 text-cyan-400" />
                 <span className="text-white font-semibold">AI Response</span>
               </div>
-              
+
               {/* Wave Visualization */}
               <div className="mb-4 rounded-xl overflow-hidden bg-gray-800/50 p-4">
                 <canvas
@@ -405,14 +401,14 @@ export default function VoiceChatbot() {
               </div>
 
               {/* Custom Controls */}
-              <div className="flex items-center justify-between gap-4">
+              {/* <div className="flex items-center justify-between gap-4">
                 <div className="text-sm text-gray-400 min-w-[40px]">
                   {formatTime(currentTime)}
                 </div>
-                
+
                 <div className="flex-1 relative">
                   <div className="w-full bg-gray-600 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-blue-500 h-2 rounded-full transition-all duration-100"
                       style={{
                         width: duration ? `${(currentTime / duration) * 100}%` : '0%'
@@ -420,13 +416,12 @@ export default function VoiceChatbot() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="text-sm text-gray-400 min-w-[40px] text-right">
                   {formatTime(duration)}
                 </div>
-              </div>
+              </div> */}
 
-              {/* Hidden audio element for actual playback */}
               <audio
                 ref={audioRef}
                 onEnded={handleAudioEnd}
@@ -442,7 +437,7 @@ export default function VoiceChatbot() {
             </div>
           )}
 
-          {/* Footer Info */}
+          {/* Footer */}
           <div className="mt-6 text-center">
             <div className="text-gray-400 text-sm bg-gray-900/50 rounded-xl p-4 border border-gray-700/30">
               <div className="flex items-center justify-center gap-2 mb-2">
