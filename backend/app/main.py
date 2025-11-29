@@ -11,7 +11,6 @@ from .stt import transcribe
 from .llm import ask_ollama
 from .tts import tts_piper
 
-# <-- IMPORT YOUR CONVERSATION MEMORY
 from .conversation import add_message, get_history
 
 app = FastAPI(title="Voice AI Assistant API")
@@ -31,7 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#clean text make it normal text
+# clean text
 def clean_text_for_tts(text: str) -> str:
     text = re.sub(r"[*_`~]", "", text)
     text = re.sub(r"^#+\s*", "", text)

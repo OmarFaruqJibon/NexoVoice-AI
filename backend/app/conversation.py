@@ -1,6 +1,6 @@
 # conversation.py
 conversation_history = []
-MAX_HISTORY = 10   # keep last 10 exchanges only
+MAX_HISTORY = 50 
 
 def add_message(role, content):
     conversation_history.append({"role": role, "content": content})

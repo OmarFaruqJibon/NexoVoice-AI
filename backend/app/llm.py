@@ -11,7 +11,6 @@ def ask_ollama(chat_payload: dict, max_tokens: int = 250) -> str:
     system_prompt = chat_payload.get("system", "")
     messages = chat_payload.get("messages", [])
 
-    # Build single prompt text
     conversation_text = system_prompt + "\n\n"
 
     for msg in messages:
