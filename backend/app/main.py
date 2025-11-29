@@ -11,7 +11,10 @@ from .stt import transcribe
 from .llm import ask_ollama
 from .tts import tts_piper
 
-app = FastAPI(title="Voice AI Chatbot API")
+# <-- IMPORT YOUR CONVERSATION MEMORY
+from .conversation import add_message, get_history
+
+app = FastAPI(title="Voice AI Assistant API")
 
 colorama_init(autoreset=True)
 
@@ -28,11 +31,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#clean text make it normal text
 def clean_text_for_tts(text: str) -> str:
-    
     text = re.sub(r"[*_`~]", "", text)
     text = re.sub(r"^#+\s*", "", text)
-
     return text.strip()
 
 
@@ -52,18 +54,35 @@ async def voice_chat(audio: UploadFile = File(...)):
 
         # STT
         text = transcribe(wav_path)
-        print(f"{Fore.MAGENTA}[STT] Transcribed text: {Style.RESET_ALL} {text}")
+        print(f"{Fore.MAGENTA}[STT] User said: {Style.RESET_ALL} {text}")
 
         if not text.strip():
             raise HTTPException(status_code=400, detail="Empty or unrecognized speech.")
 
-        # LLM
-        prompt = f"User said: {text}\nAssistant:"
-        reply = ask_ollama(prompt)
-        # print(Fore.RED + f"[LLM] Replay: {reply}" + Style.RESET_ALL)
-        print(f"{Fore.MAGENTA}[LLM] Reply: {Style.RESET_ALL} {reply}")
-        
-        # Clean the reply for TTS
+        # Add user message to memory
+        add_message("user", text)
+
+        system_instruction = (
+            "You are a warm, friendly AI voice assistant."
+            "Your name is Nexora. Your are created by Jibon."
+            "Speak naturally like a human—short, helpful, conversational. "
+            "Avoid markdown formatting. "
+            "Keep responses brief unless asked otherwise."
+        )
+
+        history = get_history()
+
+        llm_input = {
+            "system": system_instruction,
+            "messages": history
+        }
+
+        reply = ask_ollama(llm_input)
+        print(f"{Fore.CYAN}[LLM] Assistant: {Style.RESET_ALL} {reply}")
+
+        # Save assistant reply
+        add_message("assistant", reply)
+
         cleaned_reply = clean_text_for_tts(reply)
 
         # TTS
@@ -77,6 +96,3 @@ async def voice_chat(audio: UploadFile = File(...)):
             cleanup_files(src_path)
         if wav_path:
             cleanup_files(wav_path)
-
-
-

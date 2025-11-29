@@ -1,38 +1,44 @@
 # llm.py
 import requests
-from .config import OLLAMA_API, OLLAMA_MODEL
 from colorama import init as colorama_init, Fore, Style
+from .config import OLLAMA_API, OLLAMA_MODEL
+
 colorama_init(autoreset=True)
 
-def ask_ollama(prompt: str, max_tokens: int = 512) -> str:
-    
+
+def ask_ollama(chat_payload: dict, max_tokens: int = 250) -> str:
+
+    system_prompt = chat_payload.get("system", "")
+    messages = chat_payload.get("messages", [])
+
+    # Build single prompt text
+    conversation_text = system_prompt + "\n\n"
+
+    for msg in messages:
+        role = "User" if msg["role"] == "user" else "Assistant"
+        conversation_text += f"{role}: {msg['content']}\n"
+
+    conversation_text += "Assistant:"
+
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": prompt,
+        "prompt": conversation_text,
         "max_tokens": max_tokens,
-        "temperature": 0.2,
+        "temperature": 0.4,
         "stream": False
     }
 
-    resp = requests.post(OLLAMA_API, json=payload, timeout=60)
-    resp.raise_for_status()
+    try:
+        resp = requests.post(OLLAMA_API, json=payload, timeout=60)
+        resp.raise_for_status()
 
-    data = resp.json()
-
-    if isinstance(data, dict):
+        data = resp.json()
         if "response" in data:
-            reply = data["response"]
-            return reply
+            return data["response"].strip()
 
-        if "choices" in data:
-            collected = []
-            for c in data["choices"]:
-                if "message" in c and "content" in c["message"]:
-                    collected.append(c["message"]["content"])
-                elif "text" in c:
-                    collected.append(c["text"])
-            reply = "\n".join(collected).strip()
-            return reply
+        print(Fore.RED + "[LLM] Unexpected Ollama format!" + Style.RESET_ALL)
+        return str(data)
 
-    print(Fore.RED + "[LLM] Unknown Ollama response format" + Style.RESET_ALL)
-    return str(data)
+    except Exception as e:
+        print(Fore.RED + f"[LLM] Ollama error: {e}" + Style.RESET_ALL)
+        return "Sorry, I could not process that. Try again."

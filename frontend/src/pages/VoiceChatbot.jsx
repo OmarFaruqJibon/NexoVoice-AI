@@ -18,6 +18,8 @@ export default function VoiceChatbot() {
   const waveVisualizationRef = useRef(null);
   const animationRef = useRef(null);
   const waveAnimationRef = useRef(null);
+  const autoListenEnabled = true;
+
 
   // Robot visualization effect
   useEffect(() => {
@@ -128,78 +130,147 @@ export default function VoiceChatbot() {
     };
   }, [isPlaying, currentTime, duration]);
 
-  const startRecording = async () => {
-    try {
-      setStatus("requesting-permission");
-      setError("");
-      setAudioUrl("");
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
 
-      const mimeType =
-        MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" :
-          MediaRecorder.isTypeSupported("audio/ogg") ? "audio/ogg" :
-            "audio/webm";
+// ---- Voice Activity Detection (Auto Stop When Silent) ----
+const autoStopTimeout = useRef(null);
+const silenceThreshold = 0.02;   // sensitivity (0.01–0.05 works best)
+const silenceDuration = 1500;    // ms of silence before auto-stop
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+const setupVAD = (stream) => {
+  const audioContext = new AudioContext();
+  const analyser = audioContext.createAnalyser();
+  const micSource = audioContext.createMediaStreamSource(stream);
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-        }
-      };
+  analyser.fftSize = 2048;
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-      mediaRecorder.onstart = () => {
-        setRecording(true);
-        setStatus("recording");
-      };
+  micSource.connect(analyser);
 
-      mediaRecorder.onstop = async () => {
-        setRecording(false);
-        setStatus("processing");
+  const detect = () => {
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
 
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(t => t.stop());
-        }
-
-        const mime = mediaRecorder.mimeType || "audio/webm";
-        const blob = new Blob(audioChunksRef.current, { type: mime });
-
-        try {
-          const form = new FormData();
-          form.append("audio", blob, "voice.webm");
-
-          const res = await fetch("http://localhost:8000/voice-chat", {
-            method: "POST",
-            body: form,
-          });
-
-          if (!res.ok) {
-            const txt = await res.text();
-            throw new Error(txt || "Server error");
-          }
-
-          const audioBlob = await res.blob();
-          const url = URL.createObjectURL(audioBlob);
-          setAudioUrl(url);
-          setStatus("ready");
-        } catch (err) {
-          console.error(err);
-          setError(err.message || "Something went wrong.");
-          setStatus("error");
-        }
-      };
-
-      mediaRecorder.start();
-    } catch (err) {
-      console.error("Permission Error:", err);
-      setError("Microphone permission denied.");
-      setStatus("error");
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
     }
+
+    const avg = sum / dataArray.length / 255; // 0–1 normalized volume
+
+    if (avg < silenceThreshold) {
+      // user is silent
+      if (!autoStopTimeout.current) {
+        autoStopTimeout.current = setTimeout(() => {
+          console.log("Auto-stop: silence detected.");
+          stopRecording();
+        }, silenceDuration);
+      }
+    } else {
+      // user is speaking
+      if (autoStopTimeout.current) {
+        clearTimeout(autoStopTimeout.current);
+        autoStopTimeout.current = null;
+      }
+    }
+
+    requestAnimationFrame(detect);
   };
+
+  detect();
+};
+
+
+
+
+
+
+const startRecording = async () => {
+  try {
+    setStatus("requesting-permission");
+    setError("");
+    setAudioUrl("");
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
+
+    // ---- Enable Voice Activity Detection ----
+    setupVAD(stream);
+
+    const mimeType =
+      MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/ogg")
+        ? "audio/ogg"
+        : "audio/webm";
+
+    const mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorderRef.current = mediaRecorder;
+    audioChunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        audioChunksRef.current.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstart = () => {
+      setRecording(true);
+      setStatus("recording");
+    };
+
+    mediaRecorder.onstop = async () => {
+      if (autoStopTimeout.current) {
+        clearTimeout(autoStopTimeout.current);
+        autoStopTimeout.current = null;
+      }
+
+      setRecording(false);
+      setStatus("processing");
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+
+      const mime = mediaRecorder.mimeType || "audio/webm";
+      const blob = new Blob(audioChunksRef.current, { type: mime });
+
+      try {
+        const form = new FormData();
+        form.append("audio", blob, "voice.webm");
+
+        const res = await fetch("http://localhost:8000/voice-chat", {
+          method: "POST",
+          body: form,
+        });
+
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || "Server error");
+        }
+
+        const audioBlob = await res.blob();
+        const url = URL.createObjectURL(audioBlob);
+        setAudioUrl(url);
+        setStatus("ready");
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Something went wrong.");
+        setStatus("error");
+      }
+    };
+
+    mediaRecorder.start();
+  } catch (err) {
+    console.error("Permission Error:", err);
+    setError("Microphone permission denied.");
+    setStatus("error");
+  }
+};
+
+
+
+
+
 
   const stopRecording = () => {
     const mr = mediaRecorderRef.current;
@@ -225,6 +296,10 @@ export default function VoiceChatbot() {
   const handleAudioEnd = () => {
     setIsPlaying(false);
     setCurrentTime(0);
+
+    if (autoListenEnabled) {
+      startRecording();
+    }
   };
 
   const handleTimeUpdate = () => {
@@ -281,7 +356,7 @@ export default function VoiceChatbot() {
           <div className="flex items-center justify-center gap-3 mb-4">
             <Bot className="w-8 h-8 text-cyan-400" />
             <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              NexoVoice AI
+              Nexora AI
             </h1>
             <Sparkles className="w-6 h-6 text-cyan-400" />
           </div>
@@ -325,9 +400,9 @@ export default function VoiceChatbot() {
                 <div className="w-full bg-gray-700 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-300 ${status === "recording" ? "bg-red-500 animate-pulse" :
-                        status === "processing" ? "bg-purple-500" :
-                          status === "ready" ? "bg-green-500" :
-                            "bg-blue-500"
+                      status === "processing" ? "bg-purple-500" :
+                        status === "ready" ? "bg-green-500" :
+                          "bg-blue-500"
                       }`}
                     style={{
                       width: status === "recording" ? "100%" :
@@ -400,28 +475,6 @@ export default function VoiceChatbot() {
                 />
               </div>
 
-              {/* Custom Controls */}
-              {/* <div className="flex items-center justify-between gap-4">
-                <div className="text-sm text-gray-400 min-w-[40px]">
-                  {formatTime(currentTime)}
-                </div>
-
-                <div className="flex-1 relative">
-                  <div className="w-full bg-gray-600 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-100"
-                      style={{
-                        width: duration ? `${(currentTime / duration) * 100}%` : '0%'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="text-sm text-gray-400 min-w-[40px] text-right">
-                  {formatTime(duration)}
-                </div>
-              </div> */}
-
               <audio
                 ref={audioRef}
                 onEnded={handleAudioEnd}
@@ -431,7 +484,7 @@ export default function VoiceChatbot() {
                 onPause={() => setIsPlaying(false)}
                 className="hidden"
               >
-                <source src={audioUrl} type="audio/webm" />
+                <source src={audioUrl} type="audio/wav" />
                 Your browser does not support the audio element.
               </audio>
             </div>
