@@ -132,10 +132,10 @@ export default function VoiceChatbot() {
 
 
 
-// ---- Voice Activity Detection (Auto Stop When Silent) ----
+// ---- Voice Activity Detection ----
 const autoStopTimeout = useRef(null);
-const silenceThreshold = 0.02;   // sensitivity (0.01–0.05 works best)
-const silenceDuration = 1500;    // ms of silence before auto-stop
+const silenceThreshold = 0.02;   // sensitivity
+const silenceDuration = 1500;    // silence
 
 const setupVAD = (stream) => {
   const audioContext = new AudioContext();
@@ -155,7 +155,7 @@ const setupVAD = (stream) => {
       sum += dataArray[i];
     }
 
-    const avg = sum / dataArray.length / 255; // 0–1 normalized volume
+    const avg = sum / dataArray.length / 255; 
 
     if (avg < silenceThreshold) {
       // user is silent
